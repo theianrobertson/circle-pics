@@ -83,10 +83,10 @@ class Drawing(object):
         self.centre = None
         self.create_image()
         self.line_fill = (0, 0, 0)
-        self.current_radius = 100
+        self.current_radius = 60
         self.step_distance_ratio = 0.4
-        self.grow_per_loop = 10
-        self.prev_point = Point(100, 0)
+        self.grow_per_loop = 14
+        self.prev_point = Point(60, 0)
 
     def get_width(self, point):
         """Gets the width to use at a certain point in the picture
@@ -101,7 +101,7 @@ class Drawing(object):
         int
             Integer width of a line to use
         """
-        return 4
+        return 5
 
     def run_loops(self, loop_count):
         """Run a bunch of loops"""
@@ -132,24 +132,30 @@ class Drawing(object):
         self.draw = PIL.ImageDraw.Draw(self.image)
         self.centre = (int(self.image.size[0] / 2), int(self.image.size[1] / 2))
 
-    def save(self, filename=None):
+    def save(self, filename=None, resize=None):
         """Save to a png file
 
         Parameters
         ----------
         filename : str
             Optional filename - will default to a date and file pattern.
+        resize : (numeric, numeric)
+            Optional size to resize to
         """
         if not filename:
             filename = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             filename += '_output.png'
             filename = os.path.join('test_outputs', filename)
-        self.image.save(filename)
+        if resize:
+            self.image_small = self.image.resize(resize, PIL.Image.ANTIALIAS)
+            self.image_small.save(filename)
+        else:
+            self.image.save(filename)
 
 def run():
     drawing = Drawing()
-    drawing.run_loops(20)
-    drawing.save()
+    drawing.run_loops(60)
+    drawing.save(resize=(1000, 1000))
 
 if __name__ == '__main__':
     run()
