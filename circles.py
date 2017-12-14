@@ -4,22 +4,27 @@ Code for creating neato circle images
 Made by Ian
 """
 
+import sys
+import logging
 import math
 import os
+import random
 import datetime
 import PIL.Image
 import PIL.ImageDraw
 import PIL.ImageFilter
 
 #Config in here, could be split out eventually
-LINE_COLOUR = (0, 0, 0)
+LINE_COLOUR = (0, 0, 51)
 START_RADIUS = 60
-STEP_DISTANCE_RATIO = 0.4
-GROW_PER_LOOP = 30
+#STEP_DISTANCE_RATIO = 0.4
+STEP_DISTANCE_RATIO = 0.1
+GROW_PER_LOOP = 35
 IMAGE_SIZE = (3000, 3000)
 STANDARD_WIDTH = 5
 WIDTH_MULTIPLIER = 3
 WIDTH_ADDER = 3
+MAX_JITTER = 1
 
 def centre_to_zeroes(cartesian_point, centre_point):
     """Converts centre-based coordinates to be in relation to the (0,0) point.
@@ -37,6 +42,11 @@ def centre_to_zeroes(cartesian_point, centre_point):
     x = cartesian_point[0] + centre_point[0]
     y = centre_point[1] - cartesian_point[1]
     return x, y
+
+
+def jitter():
+    """Adds some random jitters to a radius"""
+    return random.choice(range(-MAX_JITTER, MAX_JITTER))
 
 
 class Point(object):
@@ -121,6 +131,8 @@ class Drawing(object):
         self.grow_per_loop = GROW_PER_LOOP
         self.prev_point = Point(START_RADIUS, 0)
         self.base_image = None
+        self.point_array = []
+        self.zero_radius = START_RADIUS
 
     def create_image(self):
         """Set up the blank slate - currently full of magic numbers."""
@@ -185,17 +197,29 @@ class Drawing(object):
         loop_count : int
             The number of loops to loop around before stopping
         """
-        for _ in range(loop_count):
-            self.loop()
+        previous_steps = 0
+        for cnt in range(loop_count):
+            print('Running loop ' + str(cnt))
+            self.zero_radius = self.current_radius
+            previous_steps = self.loop(previous_steps)
 
-    def loop(self):
+    def loop(self, previous_steps=0):
         """Run one loop of the image drawing process"""
         steps = int(
             self.current_radius * math.pi * 2 * self.step_distance_ratio)
         angle_step = 2 * math.pi / steps
         radius_step = self.grow_per_loop / steps
         for i in range(steps):
-            self.current_radius += radius_step
+            #prev_radius = self.get_previous_radius(i * angle_step)
+            if previous_steps > 0:
+                to_subtract = i + int(previous_steps * (1 - (i / steps)))
+                prev_radius = self.point_array[-to_subtract].radius
+                #print(prev_radius)
+                self.current_radius = prev_radius + self.grow_per_loop + jitter()
+            else:
+                self.current_radius += radius_step
+            #if i == 0:
+            #    self.current_radius = self.zero_radius + self.grow_per_loop
             this_point = Point(self.current_radius, i * angle_step)
             this_pil = centre_to_zeroes(
                 this_point.to_cartesian(to_int=True), self.centre)
@@ -205,6 +229,19 @@ class Drawing(object):
                 [this_pil, prev_pil],
                 fill=self.line_fill, width=self.get_width(this_point))
             self.prev_point = this_point
+            self.point_array.append(this_point)
+            #print(previous_steps, i, this_point.to_polar())
+        return steps
+
+    def get_previous_radius(self, angle):
+        """Get the previous radius "close" to an angle"""
+        prev_points = self.point_array.copy()
+        prev_points_greater = [p for p in prev_points if p.angle > angle]
+        if prev_points_greater:
+            return prev_points_greater[-1].radius
+        else:
+            return None
+
 
     def save(self, filename=None, resize=None, blur=None):
         """Save to a png file
@@ -231,11 +268,34 @@ class Drawing(object):
         else:
             self.image.save(filename)
 
-def test_run():
+def run(image, loops=None, output_size=None):
+    """Run the generation process on an image
+    
+    Parameters
+    ----------
+    image : str
+        Filename of the image file
+    loops : int, optional
+        How many loops in the output image
+    output_size : tuple, optional
+        Size to scale the output to
+    """
+    if loops is None:
+        loops = 20
+    if output_size is None:
+        output_size = (1000, 1000)
     drawing = Drawing()
-    drawing.add_base_image('inputs/audrey.png')
-    drawing.run_loops(45)
-    drawing.save(resize=(1000, 1000), blur=1)
+    drawing.add_base_image(image)
+    drawing.run_loops(loops)
+    drawing.save(resize=output_size, blur=1)
 
 if __name__ == '__main__':
-    test_run()
+    image = sys.argv[1]
+    loops = None
+    output_size = None
+    try:
+        loops = int(sys.argv[2])
+        output_size = (int(sys.argv[3]), int(sys.argv[4]))
+    except IndexError:
+        pass
+    run(image, loops, output_size)
